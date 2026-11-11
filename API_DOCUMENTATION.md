@@ -167,6 +167,7 @@ Rincian penempatan, jabatan, program akademik, periode magang, dan pembimbing la
   "data": {
     "program_category": "PKL",
     "position": "Judul lowongan yang diikuti peserta",
+    "work_unit": "Nama satuan kerja tempat peserta ditempatkan",
     "institution_origin": "SMK IDN",
     "study_program": "Rekayasa Perangkat Lunak",
     "start_date": "2026-07-06",
@@ -188,6 +189,7 @@ Rincian penempatan, jabatan, program akademik, periode magang, dan pembimbing la
 |---|---|---|
 | `program_category` | string | `Magang`, `PKL`, `Penelitian`, atau `Lainnya` |
 | `position` | string atau null | Jabatan atau posisi di tempat magang, diambil dari lowongan yang terhubung dengan peserta |
+| `work_unit` | string atau null | Nama unit atau satuan kerja tempat peserta ditempatkan, diambil dari data satker peserta |
 | `institution_origin` | string | Asal instansi, kampus, atau sekolah |
 | `study_program` | string | Jurusan atau program studi |
 | `start_date`, `end_date` | string | Tanggal mentah format `YYYY-MM-DD`. Pemformatan tampilan dilakukan di aplikasi |

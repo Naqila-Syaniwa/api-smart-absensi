@@ -69,10 +69,12 @@ router.get('/information', async (req, res, next) => {
         const [rows] = await db.query(
             `SELECT p.kategori, l.instansi, l.jurusan, l.tanggal_mulai, l.tanggal_selesai,
                     lw.title AS jabatan,
+                    s.nama_satker AS unit_kerja,
                     r.id AS mentor_id, r.nama AS mentor_nama, r.nip AS mentor_nip
              FROM peserta p
              LEFT JOIN lamaran l ON l.id = p.id_lamaran
              LEFT JOIN lowongan lw ON lw.id = p.id_lowongan
+             LEFT JOIN satker s ON s.id = p.id_satker
              LEFT JOIN role_as r ON r.id = p.id_mentor
              WHERE p.id = ?`,
              [req.auth.pesertaId]
@@ -88,6 +90,7 @@ router.get('/information', async (req, res, next) => {
             data: {
                 program_category: d.kategori,
                 position: d.jabatan,
+                work_unit: d.unit_kerja,
                 institution_origin: d.instansi,
                 study_program: d.jurusan,
                 start_date: d.tanggal_mulai,
