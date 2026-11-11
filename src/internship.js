@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
-const { tanggalPanjang, tanggalPendek, tambahHari, hariIni } = require('./util');
+const { tambahHari, hariIni } = require('./util');
 
 const router = express.Router();
 
@@ -41,14 +41,38 @@ function error422(res, errors) {
     return res.status(422).json({ status: 'error', message: 'Validasi gagal', errors });
 }
 
+// Fungsi untuk mengubah teks HTML menjadi array teks per poin
+function htmlKeDaftar(html) {
+    const hasil = [];
+    const re = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+    let m;
+    while ((m = re.exec(html || '')) !== null) {
+        const teks = m[1]
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .replace(/[;\s]+$/, '')
+            .trim();
+        if (teks) hasil.push(teks);
+    }
+    return hasil;
+}
+
 // GET /api/v1/internship/information
 router.get('/information', async (req, res, next) => {
     try {
         const [rows] = await db.query(
             `SELECT p.kategori, l.instansi, l.jurusan, l.tanggal_mulai, l.tanggal_selesai,
+                    lw.title AS jabatan,
                     r.id AS mentor_id, r.nama AS mentor_nama, r.nip AS mentor_nip
              FROM peserta p
              LEFT JOIN lamaran l ON l.id = p.id_lamaran
+             LEFT JOIN lowongan lw ON lw.id = p.id_lowongan
              LEFT JOIN role_as r ON r.id = p.id_mentor
              WHERE p.id = ?`,
              [req.auth.pesertaId]
@@ -63,11 +87,11 @@ router.get('/information', async (req, res, next) => {
             status: 'success',
             data: {
                 program_category: d.kategori,
+                position: d.jabatan,
                 institution_origin: d.instansi,
                 study_program: d.jurusan,
                 start_date: d.tanggal_mulai,
                 end_date: d.tanggal_selesai,
-                duration_label: `${tanggalPanjang(d.tanggal_mulai)} - ${tanggalPanjang(d.tanggal_selesai)}`,
                 mentor: {
                     id: d.mentor_id,
                     name: d.mentor_nama,
@@ -82,12 +106,8 @@ router.get('/information', async (req, res, next) => {
     }
 });
 
-const STATUS_TUGAS = {
-    1: 'Belum Mulai',
-    2: 'Sedang Dikerjakan',
-    3: 'Selesai',
-    4: 'Revisi',
-};
+const STATUS = { BELUM_MULAI: 1, SEDANG_DIKERJAKAN: 2, SELESAI: 3, REVISI: 4 };
+const STATUS_BOLEH_PESERTA = [STATUS.BELUM_MULAI, STATUS.SEDANG_DIKERJAKAN, STATUS.SELESAI];
 
 function urlBukti(path) {
     if (!path) return null;
@@ -112,11 +132,12 @@ router.get('/tasks', async (req, res, next) => {
         const data = rows.map((t) => ({
             id: t.id,
             title: t.judul,
-            date_range_label: `${tanggalPendek(t.tanggal_mulai)} s.d. ${tanggalPendek(t.deadline)}`,
+            start_date: t.tanggal_mulai,
+            end_date: t.deadline,
             mentor: { name: t.mentor_nama, username: t.mentor_username },
             description: t.detail,
             progress_percentage: t.progress,
-            status: STATUS_TUGAS[t.status] || 'Belum Mulai',
+            status: t.status,
             proof_file_url: urlBukti(t.bukti_file),
             proof_link: t.bukti_link,
         }));
@@ -126,12 +147,6 @@ router.get('/tasks', async (req, res, next) => {
         next(e);
     }
 });
-
-const STATUS_ANGKA = { 
-    'Belum Mulai': 1,
-    'Sedang Dikerjakan': 2,
-    'Selesai': 3
-};
 
 router.post(
     '/tasks/:id/progress',
@@ -163,13 +178,14 @@ router.post(
                 errors.progress = ['Progress harus berupa angka bulat antara 0 sampai 100.'];
             }
 
-            if (!status) {
+            const statusAngka = Number(status);
+            if (status === undefined || status === '') {
                 errors.status = ['Status wajib diisi.'];
-            } else if (!STATUS_ANGKA[status]) {
-                errors.status = ['Status harus Belum Mulai, Sedang Dikerjakan, atau Selesai.'];
+            } else if (!STATUS_BOLEH_PESERTA.includes(statusAngka)) {
+                errors.status = ['Status tidak valid.'];
             }
 
-            if (status === 'Selesai' && !errors.progress && angka !== 100) {
+            if (statusAngka === STATUS.SELESAI && !errors.progress && angka !== 100) {
                 errors.progress = ['Progress harus 100 jika status Selesai.'];
             }
 
@@ -206,7 +222,7 @@ router.post(
                     bukti_link = COALESCE(?, bukti_link),
                     updated_at = NOW()
                 WHERE id = ?`,
-                [angka, STATUS_ANGKA[status], fileBaru, proof_link || null, req.params.id]
+                [angka, statusAngka, fileBaru, proof_link || null, req.params.id]
             );
 
             if (fileBaru) hapusFile(buktiLama); // file lama diganti
@@ -223,7 +239,7 @@ router.post(
                 data: {
                     id: t.id,
                     progress_percentage: t.progress,
-                    status,
+                    status: t.status,
                     proof_file_url: urlBukti(t.bukti_file),
                     updated_at: new Date(t.updated_at.replace(' ', 'T') + 'Z').toISOString(),
                 },
@@ -235,11 +251,13 @@ router.post(
     }
 );
 
+const STATUS_TAHAP = { LOCKED: 0, CURRENT: 1, COMPLETED: 2 };
+
 // GET /api/v1/internship/timeline
 router.get('/timeline', async (req, res, next) => {
     try {
         const [rows] = await db.query(
-            `SELECT p.nodin_1_status, p.nodin_2_status, p.nodin_permohonan_status, p.sertifikat,
+            `SELECT p.nodin_1_status, p.nodin_2_status, p.nodin_permohonan_status,
                     l.tanggal_mulai, l.tanggal_selesai
              FROM peserta p
              LEFT JOIN lamaran l ON l.id = p.id_lamaran
@@ -271,25 +289,25 @@ router.get('/timeline', async (req, res, next) => {
         else if (!preLengkap) aktif = 2;
         else if (hari < pascaMulai) aktif = 3;
         else if (hari < selesai) aktif = 4;
-        else aktif = d.sertifikat ? 6 : 5;
+        else aktif = 5;
 
         const tahap = [
-            ['not_started', 'Belum Mulai', `Sebelum ${tanggalPendek(mulai)}`, 'Magang belum dimulai.'],
-            ['start', 'Mulai', tanggalPendek(mulai), 'Hari pertama magang.'],
-            ['pre_intern_documents', 'Melengkapi Berkas Pra-Magang', tanggalPendek(tambahHari(mulai, 1)), 'Lengkapi berkas pra-magang untuk melanjutkan.'],
-            ['in_progress', 'Proses Magang/PKL', `${tanggalPendek(tambahHari(mulai, 1))} - ${tanggalPendek(tambahHari(pascaMulai, -1))}`, 'Berkas pra-magang lengkap, kegiatan magang berjalan.'],
-            ['post_intern_documents', 'Melengkapi Berkas Pasca Magang', tanggalPendek(pascaMulai), 'Lengkapi berkas pasca magang.'],
-            ['completed', 'Selesai Magang/PKL', tanggalPendek(selesai), 'Magang telah selesai.'],
-            ['certificate', 'Sertifikat Magang', `Setelah ${tanggalPendek(selesai)}`, 'Sertifikat magang sudah tersedia.'],
+            ['not_started', 'Belum Mulai', null, tambahHari(mulai, -1), 'Magang belum dimulai.'],
+            ['start', 'Mulai', mulai, mulai, 'Hari pertama magang.'],
+            ['pre_intern_documents', 'Melengkapi Berkas Pra-Magang', tambahHari(mulai, 1), tambahHari(mulai, 1), 'Lengkapi berkas pra-magang untuk melanjutkan.'],
+            ['in_progress', 'Proses Magang/PKL', tambahHari(mulai, 1), tambahHari(pascaMulai, -1), 'Berkas pra-magang lengkap, kegiatan magang berjalan.'],
+            ['post_intern_documents', 'Melengkapi Berkas Pasca Magang', pascaMulai, pascaMulai, 'Lengkapi berkas pasca magang.'],
+            ['completed', 'Selesai Magang/PKL', selesai, selesai, 'Magang telah selesai.'],
         ];
 
-        const timeline = tahap.map(([key, title, date_info, description], i) => {
+        const timeline = tahap.map(([key, title, start_date, end_date, description], i) => {
             const item = {
                 id: i + 1,
                 key,
                 title,
-                date_info,
-                status: i < aktif ? 'completed' : i === aktif ? 'current' : 'locked',
+                start_date,
+                end_date,
+                status: i < aktif ? STATUS_TAHAP.COMPLETED : i === aktif ? STATUS_TAHAP.CURRENT : STATUS_TAHAP.LOCKED,
             };
             if (i === aktif) item.description = description;
             return item;
@@ -298,6 +316,29 @@ router.get('/timeline', async (req, res, next) => {
         res.json({
             status: 'success',
             data: { current_stage_key: tahap[aktif][0], timeline },
+        });
+    } catch (e) {
+        next(e);
+    }
+});
+
+router.get('/rules', async (_req, res, next) => {
+    try {
+        const [rows] = await db.query(
+            "SELECT `value`, updated_at FROM site_settings WHERE `key` = 'peraturan_pkl' LIMIT 1"
+        );
+
+        if (!rows.length) {
+            return res.status(404).json({ status: 'error', message: 'Peraturan tidak ditemukan' });
+        }
+
+        const r = rows[0];
+        res.json({
+            status: 'success',
+            data: {
+                items: htmlKeDaftar(r.value),
+                updated_at: r.updated_at ? new Date(r.updated_at.replace(' ', 'T') + 'Z').toISOString() : null,
+            },
         });
     } catch (e) {
         next(e);

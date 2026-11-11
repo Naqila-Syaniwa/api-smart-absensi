@@ -24,9 +24,10 @@ Base URL: `http://localhost:3000/api/v1`. Semua endpoint di bawah `/internship` 
 | Method | Path | Fungsi |
 |---|---|---|
 | GET | `/ping` | cek server (tanpa token) |
-| GET | `/internship/timeline` | 7 tahap magang untuk stepper |
+| GET | `/internship/timeline` | 6 tahap magang untuk stepper |
 | GET | `/internship/information` | penempatan, program, dan mentor |
 | GET | `/internship/tasks` | daftar tugas peserta |
+| GET | `/internship/rules` | peraturan dan tata tertib magang |
 | POST | `/internship/tasks/{id}/progress` | update progres dan bukti (multipart) |
 
 ### POST /internship/tasks/{id}/progress
@@ -34,11 +35,11 @@ Base URL: `http://localhost:3000/api/v1`. Semua endpoint di bawah `/internship` 
 | Field | Tipe | Aturan |
 |---|---|---|
 | progress | integer | wajib, 0 sampai 100 |
-| status | string | wajib: Belum Mulai, Sedang Dikerjakan, Selesai |
+| status | integer | wajib: 1 belum dikerjakan, 2 sedang dikerjakan, 3 selesai, 4 (revisi ditolak, hanya mentor yang bisa menetapkan) |
 | proof_file | file | opsional, PDF/JPG/PNG, maks 5 MB |
 | proof_link | url | opsional, http atau https |
 
-Status `Selesai` hanya diterima bersama progress 100.
+Status 3 (selesai) hanya diterima bersama progress 100.
 
 ## Catatan
 

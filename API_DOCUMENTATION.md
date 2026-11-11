@@ -73,7 +73,7 @@ Token boleh dikirim dalam format `id|token` (format Sanctum) atau hanya bagian `
 
 `GET /internship/timeline`
 
-Mengembalikan 7 tahap magang untuk komponen stepper, beserta tahap yang sedang aktif.
+Mengembalikan 6 tahap magang untuk komponen stepper, beserta tahap yang sedang aktif.
 
 ### Query (opsional, hanya mode pengembangan)
 
@@ -89,17 +89,16 @@ Mengembalikan 7 tahap magang untuk komponen stepper, beserta tahap yang sedang a
   "data": {
     "current_stage_key": "in_progress",
     "timeline": [
-      { "id": 1, "key": "not_started", "title": "Belum Mulai", "date_info": "Sebelum 06 Jul 2026", "status": "completed" },
-      { "id": 2, "key": "start", "title": "Mulai", "date_info": "06 Jul 2026", "status": "completed" },
-      { "id": 3, "key": "pre_intern_documents", "title": "Melengkapi Berkas Pra-Magang", "date_info": "07 Jul 2026", "status": "completed" },
+      { "id": 1, "key": "not_started", "title": "Belum Mulai", "start_date": null, "end_date": "2026-07-05", "status": 2 },
+      { "id": 2, "key": "start", "title": "Mulai", "start_date": "2026-07-06", "end_date": "2026-07-06", "status": 2 },
+      { "id": 3, "key": "pre_intern_documents", "title": "Melengkapi Berkas Pra-Magang", "start_date": "2026-07-07", "end_date": "2026-07-07", "status": 2 },
       {
         "id": 4, "key": "in_progress", "title": "Proses Magang/PKL",
-        "date_info": "07 Jul 2026 - 23 Dec 2026", "status": "current",
+        "start_date": "2026-07-07", "end_date": "2026-12-23", "status": 1,
         "description": "Berkas pra-magang lengkap, kegiatan magang berjalan."
       },
-      { "id": 5, "key": "post_intern_documents", "title": "Melengkapi Berkas Pasca Magang", "date_info": "24 Dec 2026", "status": "locked" },
-      { "id": 6, "key": "completed", "title": "Selesai Magang/PKL", "date_info": "31 Dec 2026", "status": "locked" },
-      { "id": 7, "key": "certificate", "title": "Sertifikat Magang", "date_info": "Setelah 31 Dec 2026", "status": "locked" }
+      { "id": 5, "key": "post_intern_documents", "title": "Melengkapi Berkas Pasca Magang", "start_date": "2026-12-24", "end_date": "2026-12-24", "status": 0 },
+      { "id": 6, "key": "completed", "title": "Selesai Magang/PKL", "start_date": "2026-12-31", "end_date": "2026-12-31", "status": 0 }
     ]
   }
 }
@@ -110,16 +109,30 @@ Mengembalikan 7 tahap magang untuk komponen stepper, beserta tahap yang sedang a
 | Atribut | Tipe | Keterangan |
 |---|---|---|
 | `current_stage_key` | string | Kunci tahap aktif |
-| `timeline[].id` | integer | Urutan 1 sampai 7 |
-| `timeline[].key` | string | `not_started`, `start`, `pre_intern_documents`, `in_progress`, `post_intern_documents`, `completed`, `certificate` |
+| `timeline[].id` | integer | Urutan 1 sampai 6 |
+| `timeline[].key` | string | `not_started`, `start`, `pre_intern_documents`, `in_progress`, `post_intern_documents`, `completed` |
 | `timeline[].title` | string | Judul tahap |
-| `timeline[].date_info` | string | Keterangan jadwal |
-| `timeline[].status` | string | `completed`, `current`, atau `locked` |
-| `timeline[].description` | string | Hanya ada pada tahap `current` |
+| `timeline[].start_date` | string atau null | Tanggal mulai tahap, format `YYYY-MM-DD`. `null` hanya pada tahap `not_started` |
+| `timeline[].end_date` | string | Tanggal akhir tahap, format `YYYY-MM-DD` |
+| `timeline[].status` | integer | Lihat tabel status tahap |
+| `timeline[].description` | string | Hanya ada pada tahap yang sedang aktif |
+
+### Nilai `status` tahap
+
+| Nilai | Arti |
+|---|---|
+| `0` | Terkunci |
+| `1` | Tahap saat ini |
+| `2` | Selesai |
+
+### Aturan Tanggal
+
+- Tahap satu hari (`start`, `pre_intern_documents`, `post_intern_documents`, `completed`) memiliki `start_date` dan `end_date` yang sama.
+- `not_started`: `start_date` bernilai `null`, `end_date` adalah sehari sebelum tanggal mulai magang.
 
 ### Aturan Penentuan Tahap Aktif
 
-Dibandingkan secara berurutan, berdasarkan tanggal hari ini (zona waktu Asia/Jakarta). Tahap sebelum tahap aktif berstatus `completed`, sesudahnya `locked`.
+Dibandingkan secara berurutan, berdasarkan tanggal hari ini (zona waktu Asia/Jakarta). Tahap sebelum tahap aktif berstatus `2`, tahap aktif `1`, dan sesudahnya `0`.
 
 | Kondisi | Tahap aktif |
 |---|---|
@@ -128,8 +141,7 @@ Dibandingkan secara berurutan, berdasarkan tanggal hari ini (zona waktu Asia/Jak
 | Berkas pra-magang belum lengkap | `pre_intern_documents` |
 | Hari ini sebelum 7 hari terakhir magang | `in_progress` |
 | Hari ini masuk 7 hari terakhir magang | `post_intern_documents` |
-| Hari ini sudah melewati tanggal selesai, sertifikat belum ada | `completed` |
-| Hari ini sudah melewati tanggal selesai, sertifikat sudah ada | `certificate` |
+| Hari ini sudah melewati tanggal selesai | `completed` |
 
 Berkas pra-magang dianggap lengkap bila `nodin_1_status`, `nodin_2_status`, dan `nodin_permohonan_status` ketiganya bernilai 3. Tanggal mulai dan selesai diambil dari data lamaran.
 
@@ -145,7 +157,7 @@ Berkas pra-magang dianggap lengkap bila `nodin_1_status`, `nodin_2_status`, dan 
 
 `GET /internship/information`
 
-Rincian penempatan, program akademik, durasi, dan pembimbing lapangan.
+Rincian penempatan, jabatan, program akademik, periode magang, dan pembimbing lapangan.
 
 ### Contoh Respons
 
@@ -154,11 +166,11 @@ Rincian penempatan, program akademik, durasi, dan pembimbing lapangan.
   "status": "success",
   "data": {
     "program_category": "PKL",
+    "position": "Judul lowongan yang diikuti peserta",
     "institution_origin": "SMK IDN",
     "study_program": "Rekayasa Perangkat Lunak",
     "start_date": "2026-07-06",
     "end_date": "2026-12-31",
-    "duration_label": "6 Juli 2026 - 31 Desember 2026",
     "mentor": {
       "id": 42,
       "name": "Nama Mentor",
@@ -175,10 +187,10 @@ Rincian penempatan, program akademik, durasi, dan pembimbing lapangan.
 | Atribut | Tipe | Keterangan |
 |---|---|---|
 | `program_category` | string | `Magang`, `PKL`, `Penelitian`, atau `Lainnya` |
+| `position` | string atau null | Jabatan atau posisi di tempat magang, diambil dari lowongan yang terhubung dengan peserta |
 | `institution_origin` | string | Asal instansi, kampus, atau sekolah |
 | `study_program` | string | Jurusan atau program studi |
-| `start_date`, `end_date` | string | Format `YYYY-MM-DD` |
-| `duration_label` | string | Rentang waktu dalam bahasa Indonesia |
+| `start_date`, `end_date` | string | Tanggal mentah format `YYYY-MM-DD`. Pemformatan tampilan dilakukan di aplikasi |
 | `mentor.id` | integer | ID mentor (`role_as.id`) |
 | `mentor.name` | string | Nama pembimbing |
 | `mentor.nip` | string | NIP pembimbing |
@@ -207,11 +219,12 @@ Tugas dari mentor milik peserta yang sedang login, diurutkan dari yang terbaru.
     {
       "id": 66,
       "title": "Membuat fitur tahapan magang",
-      "date_range_label": "26 Oct 2026 s.d. 28 Oct 2026",
+      "start_date": "2026-10-26",
+      "end_date": "2026-10-28",
       "mentor": { "name": "Nama Mentor", "username": "nama.mentor" },
       "description": "menampilkan tahapan magang yang sedang dilalui peserta magang",
       "progress_percentage": 100,
-      "status": "Selesai",
+      "status": 3,
       "proof_file_url": "http://localhost:3000/storage/tugas/tugas_xxxx.png",
       "proof_link": null
     }
@@ -225,22 +238,23 @@ Tugas dari mentor milik peserta yang sedang login, diurutkan dari yang terbaru.
 |---|---|---|
 | `id` | integer | ID tugas |
 | `title` | string | Judul tugas |
-| `date_range_label` | string | Rentang tanggal mulai sampai deadline |
+| `start_date` | string | Tanggal mulai tugas, format `YYYY-MM-DD` |
+| `end_date` | string | Deadline tugas, format `YYYY-MM-DD` |
 | `mentor.name`, `mentor.username` | string | Mentor pemberi tugas |
 | `description` | string | Detail tugas |
 | `progress_percentage` | integer | 0 sampai 100 |
-| `status` | string | Lihat tabel status |
+| `status` | integer | Lihat tabel status |
 | `proof_file_url` | string atau null | URL file bukti, `null` jika belum ada |
 | `proof_link` | string atau null | Tautan bukti, `null` jika belum ada |
 
 ### Nilai `status`
 
-| Nilai | Keterangan |
+| Nilai | Arti |
 |---|---|
-| `Belum Mulai` | Tugas belum dikerjakan |
-| `Sedang Dikerjakan` | Tugas sedang berjalan |
-| `Selesai` | Tugas selesai |
-| `Revisi` | Hanya bisa ditetapkan mentor lewat portal admin |
+| `1` | Belum dikerjakan |
+| `2` | Sedang dikerjakan |
+| `3` | Selesai |
+| `4` | Revisi (hanya bisa ditetapkan mentor lewat portal admin) |
 
 Jika tidak ada tugas, `data` berupa array kosong `[]`.
 
@@ -263,14 +277,14 @@ Content-Type: `multipart/form-data`. Hanya bisa memperbarui tugas milik peserta 
 | Field | Tipe | Wajib | Aturan |
 |---|---|---|---|
 | `progress` | integer | Ya | Bilangan bulat 0 sampai 100 |
-| `status` | string | Ya | `Belum Mulai`, `Sedang Dikerjakan`, atau `Selesai` |
+| `status` | integer | Ya | `1` (belum dikerjakan), `2` (sedang dikerjakan), atau `3` (selesai) |
 | `proof_file` | file | Tidak | PDF, JPG, atau PNG. Maksimum 5 MB (5120 KB) |
 | `proof_link` | string | Tidak | URL valid dengan skema `http` atau `https` |
 
 ### Aturan Bisnis
 
-- Status `Selesai` hanya diterima bersama `progress` bernilai 100.
-- Status `Revisi` ditolak, karena hanya mentor yang dapat menetapkannya.
+- Status `3` (selesai) hanya diterima bersama `progress` bernilai 100.
+- Status `4` (revisi) ditolak, karena hanya mentor yang dapat menetapkannya.
 - Mengunggah `proof_file` baru otomatis menghapus file bukti lama.
 - Jika `proof_file` atau `proof_link` tidak dikirim, nilai lamanya dipertahankan.
 - Klien Flutter wajib memakai `FormData` multipart saat mengunggah file.
@@ -284,7 +298,7 @@ Content-Type: `multipart/form-data`. Hanya bisa memperbarui tugas milik peserta 
   "data": {
     "id": 66,
     "progress_percentage": 100,
-    "status": "Selesai",
+    "status": 3,
     "proof_file_url": "http://localhost:3000/storage/tugas/tugas_xxxx.png",
     "updated_at": "2026-10-28T10:50:00.000Z"
   }
@@ -311,10 +325,10 @@ Content-Type: `multipart/form-data`. Hanya bisa memperbarui tugas milik peserta 
 | `progress` | `Progress harus berupa angka bulat antara 0 sampai 100.` |
 | `progress` | `Progress harus 100 jika status Selesai.` |
 | `status` | `Status wajib diisi.` |
-| `status` | `Status harus Belum Mulai, Sedang Dikerjakan, atau Selesai.` |
+| `status` | `Status tidak valid.` |
 | `proof_link` | `Format tautan tidak valid.` |
 | `proof_file` | `Ukuran file bukti tidak boleh melampaui 5MB.` |
-| `proof_file` | `Format file bukti harus PDF, JPG, atau PNG.` |
+| `proof_file` | `File harus berupa PDF, JPG, atau PNG` |
 | `proof_file` | `Field file harus bernama proof_file.` |
 
 ### Error Lain
@@ -325,17 +339,41 @@ Content-Type: `multipart/form-data`. Hanya bisa memperbarui tugas milik peserta 
 
 ---
 
-## Penyimpanan File
+## 6. Peraturan & Tata Tertib
 
-File bukti disimpan di folder `uploads/tugas` dan disajikan lewat `GET /storage/{path}`. Nilai `proof_file_url` dibentuk dari `BASE_URL` di file `.env`.
+`GET /internship/rules`
 
-## Contoh Request (cURL)
+Daftar peraturan dan tata tertib magang. Isinya diambil dari database (`site_settings`, key `peraturan_pkl`), jadi perubahan dari mentor langsung ikut tampil. Peraturan yang sama berlaku untuk semua peserta.
 
+### Contoh Respons
+
+```json
+{
+  "status": "success",
+  "data": {
+    "items": [
+      "Menjaga nilai-nilai Setjen RI yakni BERAKHLAK (Berorientasi Pelayanan, Akuntabel, Kompeten, Harmonis, Loyal, Adaptif, dan Kolaboratif)",
+      "Bersikap sopan dan santun selama di lingkungan Setjen DPR RI",
+      "Selalu memakai ID Card/Tanda Pengenal"
+    ],
+    "updated_at": "2026-07-05T11:55:08.000Z"
+  }
+}
 ```
-curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/v1/internship/tasks
 
-curl.exe -X POST -H "Authorization: Bearer TOKEN" ^
-  -F "progress=100" -F "status=Selesai" ^
-  -F "proof_link=https://drive.google.com/tes" ^
-  http://localhost:3000/api/v1/internship/tasks/66/progress
-```
+Contoh di atas dipotong. Respons asli berisi seluruh poin.
+
+### Atribut
+
+| Atribut | Tipe | Keterangan |
+|---|---|---|
+| `items` | array of string | Satu elemen per poin, sesuai urutan. Penomoran dibuat oleh aplikasi |
+| `updated_at` | string atau null | Waktu terakhir peraturan diubah (ISO 8601, UTC) |
+
+### Error
+
+| Kode | Pesan |
+|---|---|
+| 404 | `Peraturan tidak ditemukan` |
+
+---
